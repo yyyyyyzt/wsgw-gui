@@ -11,7 +11,29 @@
 
 ## 开发准备
 
-待补充
+> 当前仓库尚未初始化实际工程代码。请先按“阶段 0”完成项目骨架创建，再进入业务开发。
+
+### 环境要求（建议）
+
+- Node.js 20 LTS 及以上
+- npm 10 及以上
+- Rust stable（建议 1.77+）
+- Tauri 开发依赖（按官方文档安装系统依赖）
+
+### 阶段 0：从文档仓库到可运行工程
+
+1. 初始化前端与 Tauri 工程骨架（对应 `progress.md` 里程碑 A1）
+2. 生成并提交以下基础文件：
+   - `package.json`（含 `tauri:dev`、`tauri:build`）
+   - `src-tauri/Cargo.toml`
+   - `src-tauri/tauri.conf.json`
+   - 前端入口与最小页面
+3. 本地验证：
+   - 可执行 `npm install`
+   - 可执行 `npm run tauri:dev`
+4. 完成后同步更新：
+   - `progress.md` 当前迭代任务
+   - 本 README 的“开发与运行”命令（若有变更）
 
 ## 开发与运行
 
@@ -30,6 +52,13 @@ npm run tauri:build
 ```
 
 打包完成后，安装包会生成在 `src-tauri/target/release/bundle/nsis/` 目录下，可直接分发。
+
+## 边开发边补文档（必做）
+
+1. 每次开工前先更新 `progress.md` 的“当前迭代任务”。
+2. 每完成一个可验证子功能，立刻更新任务状态与一句产出说明。
+3. 若命令、目录、配置发生变化，必须在同次提交内同步更新 README。
+4. 提交前检查“文档命令可执行、文档路径真实存在”。
 
 ## 使用说明
 
