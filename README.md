@@ -11,8 +11,6 @@
 
 ## 开发准备
 
-> 当前仓库尚未初始化实际工程代码。请先按“阶段 0”完成项目骨架创建，再进入业务开发。
-
 ### 环境要求（建议）
 
 - Node.js 20 LTS 及以上
@@ -22,16 +20,16 @@
 
 ### 阶段 0：从文档仓库到可运行工程
 
-1. 初始化前端与 Tauri 工程骨架（对应 `progress.md` 里程碑 A1）
-2. 生成并提交以下基础文件：
+1. 初始化前端与 Tauri 工程骨架（对应 `progress.md` 里程碑 A1） ✅ 已完成
+2. 已生成并提交以下基础文件：
    - `package.json`（含 `tauri:dev`、`tauri:build`）
    - `src-tauri/Cargo.toml`
    - `src-tauri/tauri.conf.json`
-   - 前端入口与最小页面
-3. 本地验证：
-   - 可执行 `npm install`
-   - 可执行 `npm run tauri:dev`
-4. 完成后同步更新：
+   - 前端入口与最小页面（`index.html`、`src/main.ts`、`src/styles.css`）
+3. 后续进入业务开发前仍需执行本地验证：
+   - `npm run typecheck`
+   - `npm run tauri:dev`
+4. 每次阶段完成后同步更新：
    - `progress.md` 当前迭代任务
    - 本 README 的“开发与运行”命令（若有变更）
 
