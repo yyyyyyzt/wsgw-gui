@@ -11,6 +11,7 @@
 | v0.1 | 2026-04-18 | 仓库初始化，仅包含项目说明文档 |
 | v0.2 | 2026-04-18 | 重构开发计划，补充验收标准与文档协同机制 |
 | v0.3 | 2026-04-18 | 完成里程碑 A1：初始化 Tauri 工程骨架与最小页面 |
+| v0.4 | 2026-04-18 | 完成里程碑 A2：Midscene + puppeteer-core 最小 CDP 探活（Tauri 命令 + 子进程） |
 
 ## 项目目标（MVP）
 
@@ -25,7 +26,7 @@
 | 任务 | 状态 | 产出物 | 验收标准 |
 | ---- | ---- | ------ | -------- |
 | A1. 初始化 Tauri 项目结构（前端 + `src-tauri`） | ✅ 已完成 | 可运行工程目录、`package.json`、`src-tauri/Cargo.toml` | 执行 `npm run tauri:dev` 可启动开发环境 |
-| A2. 接入 Midscene 运行时依赖与最小调用封装 | ⏳ 未开始 | Node 侧任务执行模块（如 `src/automation/`） | 可通过按钮触发一次最小自动化调用并返回结果 |
+| A2. 接入 Midscene 运行时依赖与最小调用封装 | ✅ 已完成 | `scripts/run-minimal-midscene.mts`、esbuild bundle、`run_midscene_minimal` 命令、`.env.example` | 用户点击按钮后通过 Tauri 拉起 Node 子进程，完成 CDP 连接与 Midscene `PuppeteerAgent` 实例化并返回当前页 URL |
 | A3. 增加配置体系（`.env.example`、读取逻辑、缺省值） | ⏳ 未开始 | 环境变量模板、配置加载模块 | 未配置关键变量时有明确错误提示，不崩溃 |
 | A4. 提供基础界面与状态流转 | ⏳ 未开始 | 首页基础 UI、状态枚举、日志展示 | 可看到“未连接/连接中/已连接/执行中/完成/失败”状态 |
 
@@ -48,14 +49,19 @@
 
 ## 当前迭代任务（Now）
 
-### Iteration-1：里程碑 A1（工程骨架初始化）
+### Iteration-2：里程碑 A3 / A4（配置与界面状态）
+
+- [ ] 增加配置体系（`.env` 与读取逻辑、缺省值与错误提示）（里程碑 A3）
+- [ ] 完善首页状态枚举与日志区（里程碑 A4）
+
+### Iteration-1：里程碑 A1（工程骨架初始化）— 已收尾
 
 - [x] 梳理仓库现状与缺口
 - [x] 重构 `progress.md` 为可执行计划
 - [x] 明确“边开发边补文档”的协同机制
 - [x] 创建首个可运行 Tauri 工程骨架（里程碑 A1）
 - [x] 补充环境准备与命令验证文档
-- [ ] 接入 Midscene 运行时依赖与最小调用封装（里程碑 A2）
+- [x] 接入 Midscene 运行时依赖与最小调用封装（里程碑 A2）
 
 ## 文档补齐记录（开发同步更新）
 
@@ -64,6 +70,7 @@
 | 2026-04-18 | 将宏观待办改为里程碑 + 验收标准，新增迭代机制 | `progress.md` |
 | 2026-04-18 | 补充开发准备、文档协同流程说明 | `README.md`、`agents.md` |
 | 2026-04-18 | 初始化 Tauri 工程骨架与最小界面，补充运行命令说明 | `package.json`、`src/`、`src-tauri/`、`README.md`、`progress.md` |
+| 2026-04-18 | 接入 Midscene 最小探活：esbuild 打包脚本、Tauri `run_midscene_minimal`、bundle resources、环境变量模板与 README | `package.json`、`scripts/`、`src-tauri/`、`src/main.ts`、`.env.example`、`README.md`、`progress.md`、`.gitignore`、`rust-toolchain.toml` |
 
 ## 文档协同机制（必须执行）
 
@@ -75,8 +82,8 @@
 
 ## 当前状态
 
-- 当前版本：v0.3
-- 当前阶段：Iteration-1（里程碑 A1 已完成，进入里程碑 A2 准备）
-- 最近完成：Tauri 工程骨架、最小页面、基础运行脚本与配置初始化
-- 下一步待开发：接入 Midscene 运行时依赖与最小调用封装（A2）
-- 未解决问题：按本轮要求暂未执行本地测试验证，待后续联调时统一补测
+- 当前版本：v0.4
+- 当前阶段：Iteration-2（里程碑 A2 已完成，进入配置体系 A3 与界面状态 A4）
+- 最近完成：Midscene + puppeteer-core CDP 最小探活链路、资源打包与文档同步
+- 下一步待开发：配置加载与缺省值（A3）、界面状态流转（A4）
+- 未解决问题：按本轮要求跳过自动化/手动测试；需在 Windows + 已安装 Node 的环境联调验证

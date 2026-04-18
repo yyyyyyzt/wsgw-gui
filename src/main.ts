@@ -1,16 +1,19 @@
-type StatusType = "idle" | "working" | "done";
+import { invoke } from "@tauri-apps/api/core";
+
+import "./styles.css";
+
+type StatusType = "idle" | "working" | "done" | "failed";
 
 const state = {
   status: "idle" as StatusType,
-  logs: ["项目骨架已初始化，等待执行任务。"],
+  logs: ["项目已接入 Midscene 最小探活：请先按 README 开启 Chrome 远程调试并配置环境变量，再点击下方按钮。"],
 };
-
-import "./styles.css";
 
 const statusMap: Record<StatusType, string> = {
   idle: "未开始",
   working: "执行中",
   done: "已完成",
+  failed: "失败",
 };
 
 function renderLayout(): void {
@@ -20,7 +23,7 @@ function renderLayout(): void {
     <main class="layout">
       <section class="card">
         <h1 class="title">WSGW GUI</h1>
-        <p class="subtitle">Tauri + Midscene 自动化客户端骨架（里程碑 A1）</p>
+        <p class="subtitle">Tauri + Midscene Windows 自动化客户端（里程碑 A2：最小探活）</p>
       </section>
       <section class="card">
         <div class="status">
@@ -28,7 +31,7 @@ function renderLayout(): void {
           当前状态：<strong id="status-value"></strong>
         </div>
         <div class="actions" style="margin-top: 12px;">
-          <button id="run-task">执行占位任务</button>
+          <button id="run-task">运行 Midscene 最小探活</button>
         </div>
         <ol id="logs" class="log"></ol>
       </section>
@@ -63,21 +66,31 @@ function setStatus(status: StatusType): void {
   renderStatus();
 }
 
-async function runMockTask(): Promise<void> {
+async function runMidsceneMinimalTask(): Promise<void> {
   setStatus("working");
-  pushLog("开始执行内置占位任务...");
-  await new Promise((resolve) => {
-    window.setTimeout(resolve, 800);
-  });
-  pushLog("占位任务执行完成。下一步将接入 Midscene 与 CDP 逻辑。");
-  setStatus("done");
+  pushLog("[automation] 正在通过 Tauri 调用 Node 子进程（Midscene + puppeteer-core + CDP）…");
+
+  try {
+    const message = await invoke<string>("run_midscene_minimal");
+    pushLog(`[automation] ${message}`);
+    setStatus("done");
+  } catch (raw) {
+    const errText =
+      typeof raw === "string"
+        ? raw
+        : raw instanceof Error
+          ? raw.message
+          : JSON.stringify(raw);
+    pushLog(`[automation] 失败：${errText}`);
+    setStatus("failed");
+  }
 }
 
 function bindEvents(): void {
   const runBtn = document.querySelector<HTMLButtonElement>("#run-task");
   if (!runBtn) return;
   runBtn.addEventListener("click", () => {
-    void runMockTask();
+    void runMidsceneMinimalTask();
   });
 }
 
