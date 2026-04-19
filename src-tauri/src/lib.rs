@@ -1,12 +1,18 @@
+mod cdp_session;
 mod env_bootstrap;
 
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
 use tauri::path::BaseDirectory;
 use tauri::Manager;
+
+use cdp_session::CdpSessionCache;
+
+static CDP_CACHE: LazyLock<CdpSessionCache> = LazyLock::new(CdpSessionCache::new);
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +46,45 @@ fn get_runtime_config_summary() -> RuntimeConfigSummary {
     wsgw_cdp_ws_url_configured: ws_set,
     wsgw_demo_url_configured: demo,
   }
+}
+
+/// 进程内 CDP WebSocket 缓存状态（里程碑 B2）。
+#[tauri::command]
+fn get_cdp_session_status() -> cdp_session::CdpSessionStatus {
+  cdp_session::session_status_snapshot(&CDP_CACHE)
+}
+
+/// 丢弃已缓存的 `webSocketDebuggerUrl`，下次将重新解析。
+#[tauri::command]
+fn clear_cdp_session() -> Result<String, String> {
+  CDP_CACHE.clear();
+  Ok("已清除 CDP WebSocket 缓存。下次建立会话或运行探活时将重新解析。".into())
+}
+
+/// 解析（或读取环境变量中的）CDP WebSocket 并完成一次短握手，供后续探活复用。
+#[tauri::command]
+async fn establish_cdp_session(force_refresh: bool) -> Result<String, String> {
+  tauri::async_runtime::spawn_blocking(move || {
+    let (ws, source, refreshed) = CDP_CACHE.resolve_endpoint(force_refresh)?;
+    cdp_session::try_cdp_websocket_handshake(&ws)?;
+    let src_label = match source {
+      "env" => "WSGW_CDP_WS_URL",
+      "http" => "/json/version（带重试）",
+      _ => "unknown",
+    };
+    let reuse = if force_refresh {
+      "已强制刷新并重新握手"
+    } else if refreshed {
+      "已解析、缓存并完成握手"
+    } else {
+      "使用已缓存端点并完成握手"
+    };
+    Ok(format!(
+      "CDP 会话就绪：{reuse}；来源 {src_label}；WebSocket 校验通过。"
+    ))
+  })
+  .await
+  .map_err(|e| format!("后台任务 Join 失败：{e}"))?
 }
 
 fn resolve_midscene_script_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -101,6 +146,7 @@ async fn check_cdp_devtools_json() -> Result<String, String> {
 }
 
 /// 用户点击界面后由前端调用：在子进程中运行打包后的 Midscene 最小探活脚本（不自动执行）。
+/// 里程碑 B2：优先使用进程内缓存的 `webSocketDebuggerUrl` 注入子进程，复用同一浏览器上下文。
 #[tauri::command]
 async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
   env_bootstrap::validate_cdp_settings_for_child()?;
@@ -108,9 +154,6 @@ async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
   let script = resolve_midscene_script_path(&app)?;
   let node = find_node_binary().to_string();
 
-  let cdp_ws = std::env::var("WSGW_CDP_WS_URL")
-    .ok()
-    .filter(|s| !s.trim().is_empty());
   let debug_port = std::env::var("WSGW_DEBUG_PORT")
     .ok()
     .filter(|s| !s.trim().is_empty());
@@ -119,15 +162,15 @@ async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
     .filter(|s| !s.trim().is_empty());
 
   tauri::async_runtime::spawn_blocking(move || {
+    let (resolved_ws, _, _) = CDP_CACHE.resolve_endpoint(false)?;
+
     let mut cmd = Command::new(&node);
     cmd.arg(&script);
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    if let Some(v) = cdp_ws {
-      cmd.env("WSGW_CDP_WS_URL", v);
-    }
+    cmd.env("WSGW_CDP_WS_URL", &resolved_ws);
     if let Some(v) = debug_port {
       cmd.env("WSGW_DEBUG_PORT", v);
     }
@@ -213,6 +256,9 @@ pub fn run() {
       run_midscene_minimal,
       check_cdp_reachable,
       check_cdp_devtools_json,
+      establish_cdp_session,
+      clear_cdp_session,
+      get_cdp_session_status,
       get_runtime_config_summary
     ])
     .setup(|app| {

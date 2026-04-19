@@ -62,7 +62,8 @@ function renderLayout(): void {
         </div>
         <p class="config-hint" id="config-hint"></p>
         <div class="actions" style="margin-top: 12px;">
-          <button type="button" id="btn-check">检测 CDP（TCP + HTTP）</button>
+          <button type="button" id="btn-check">检测 CDP（TCP + HTTP + 会话）</button>
+          <button type="button" id="btn-clear" class="secondary">清除 CDP 缓存</button>
           <button type="button" id="btn-run">运行 Midscene 最小探活</button>
         </div>
         <ol id="logs" class="log"></ol>
@@ -109,9 +110,11 @@ function setUiStatus(s: UiStatus): void {
 
 function syncButtonDisabled(): void {
   const checkBtn = document.querySelector<HTMLButtonElement>("#btn-check");
+  const clearBtn = document.querySelector<HTMLButtonElement>("#btn-clear");
   const runBtn = document.querySelector<HTMLButtonElement>("#btn-run");
   const disabled = state.busy;
   if (checkBtn) checkBtn.disabled = disabled;
+  if (clearBtn) clearBtn.disabled = disabled;
   if (runBtn) runBtn.disabled = disabled;
 }
 
@@ -157,14 +160,39 @@ async function onCheckCdp(): Promise<void> {
     return;
   }
 
-  pushLog("[cdp] ② HTTP：请求 /json/version 并校验 webSocketDebuggerUrl…");
+  pushLog("[cdp] ② HTTP：请求 /json/version 并校验 webSocketDebuggerUrl（含重试）…");
   try {
     const httpMsg = await invoke<string>("check_cdp_devtools_json");
     pushLog(`[cdp] ${httpMsg}`);
-    setUiStatus("connected");
   } catch (raw) {
     pushLog(`[cdp] HTTP/JSON 失败：${formatInvokeError(raw)}`);
     setUiStatus("failed");
+    setBusy(false);
+    return;
+  }
+
+  pushLog("[cdp] ③ WebSocket：建立 CDP 会话（握手校验，结果缓存供探活复用）…");
+  try {
+    const sessMsg = await invoke<string>("establish_cdp_session", { forceRefresh: false });
+    pushLog(`[cdp] ${sessMsg}`);
+    setUiStatus("connected");
+  } catch (raw) {
+    pushLog(`[cdp] 会话/握手失败：${formatInvokeError(raw)}`);
+    setUiStatus("failed");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function onClearCdpCache(): Promise<void> {
+  setBusy(true);
+  pushLog("[cdp] 请求清除进程内 CDP WebSocket 缓存…");
+  try {
+    const msg = await invoke<string>("clear_cdp_session");
+    pushLog(`[cdp] ${msg}`);
+    setUiStatus("disconnected");
+  } catch (raw) {
+    pushLog(`[cdp] 清除失败：${formatInvokeError(raw)}`);
   } finally {
     setBusy(false);
   }
@@ -190,6 +218,9 @@ function bindEvents(): void {
   document.querySelector("#btn-check")?.addEventListener("click", () => {
     void onCheckCdp();
   });
+  document.querySelector("#btn-clear")?.addEventListener("click", () => {
+    void onClearCdpCache();
+  });
   document.querySelector("#btn-run")?.addEventListener("click", () => {
     void onRunMidscene();
   });
@@ -200,7 +231,7 @@ async function bootstrap(): Promise<void> {
   renderStatus();
   renderLogs();
   bindEvents();
-  pushLog("就绪：请先配置 .env（或使用默认端口 9222），建议先点「检测 CDP（TCP + HTTP）」再运行探活。");
+  pushLog("就绪：请先配置 .env（或使用默认端口 9222），建议先点「检测 CDP（TCP + HTTP + 会话）」再运行探活；探活会复用已缓存的 WebSocket。");
   await loadConfigSummary();
 }
 

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::cdp_session;
+
 /// 在进程启动时加载 `.env`，不覆盖已存在的环境变量（与 shell 导出行为一致）。
 pub fn load_dotenv_files() {
   if let Ok(override_path) = std::env::var("WSGW_ENV_FILE") {
@@ -144,93 +146,7 @@ pub fn check_debug_port_http_json() -> Result<String, String> {
     return Err("WSGW_DEBUG_PORT 不能为 0".into());
   }
 
-  let url = format!("http://127.0.0.1:{port}/json/version");
-  let addr = format!("127.0.0.1:{port}");
-  let socket_addr: std::net::SocketAddr = addr
-    .parse()
-    .map_err(|e| format!("内部错误：无法解析地址 {addr}：{e}"))?;
-
-  use std::io::{Read, Write};
-  use std::net::TcpStream;
-  use std::time::Duration;
-
-  let mut stream = TcpStream::connect_timeout(&socket_addr, Duration::from_secs(3)).map_err(
-    |e| {
-      format!(
-        "无法连接 {addr}（{e}）。请先通过「检测 CDP（TCP）」确认端口开放，或检查 Chrome 是否以 --remote-debugging-port={port} 启动。"
-      )
-    },
-  )?;
-  let _ = stream.set_read_timeout(Some(Duration::from_secs(4)));
-  let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
-
-  let req = format!(
-    "GET /json/version HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\nAccept: */*\r\n\r\n"
-  );
-  stream
-    .write_all(req.as_bytes())
-    .map_err(|e| format!("向 {url} 发送 HTTP 请求失败：{e}"))?;
-
-  let mut raw = Vec::<u8>::new();
-  stream
-    .read_to_end(&mut raw)
-    .map_err(|e| format!("读取 {url} 响应失败：{e}"))?;
-
-  let text = String::from_utf8_lossy(&raw).into_owned();
-  let lower = text.to_ascii_lowercase();
-  let body_start = lower
-    .find("\r\n\r\n")
-    .ok_or_else(|| format!("{url} 响应格式异常：未找到 HTTP 头结束标记。"))?
-    + 4;
-
-  let (head, body) = text.split_at(body_start);
-  let status_line = head.lines().next().unwrap_or("").trim();
-  let status_code = status_line
-    .split_whitespace()
-    .nth(1)
-    .and_then(|s| s.parse::<u16>().ok())
-    .unwrap_or(0);
-
-  if !(200..300).contains(&status_code) {
-    return Err(format!(
-      "请求 {url} 返回非成功状态：{status_line}。远程调试端口可能未由浏览器正确暴露。"
-    ));
-  }
-
-  let body_trim = body.trim();
-  let json: serde_json::Value =
-    serde_json::from_str(body_trim).map_err(|e| {
-      format!(
-        "{url} 的响应体不是合法 JSON（{e}）。若端口被其他程序占用，请更换 WSGW_DEBUG_PORT。响应片段：{}",
-        body_trim.chars().take(120).collect::<String>()
-      )
-    })?;
-
-  let ws = json
-    .get("webSocketDebuggerUrl")
-    .and_then(|v| v.as_str())
-    .unwrap_or("");
-
-  if ws.is_empty() {
-    return Err(format!(
-      "{url} 返回的 JSON 中缺少 webSocketDebuggerUrl。请确认该端口由 Chrome DevTools 协议提供，而非普通 HTTP 服务。"
-    ));
-  }
-
-  let browser = json
-    .get("Browser")
-    .or_else(|| json.get("browser"))
-    .and_then(|v| v.as_str())
-    .unwrap_or("");
-
-  if browser.is_empty() {
-    Ok(format!(
-      "HTTP/JSON 检测通过：{url} 返回 DevTools 版本信息，webSocketDebuggerUrl 已就绪（长度 {}）。",
-      ws.len()
-    ))
-  } else {
-    Ok(format!(
-      "HTTP/JSON 检测通过：{url} 对应 {browser}，webSocketDebuggerUrl 已就绪。"
-    ))
-  }
+  let info = cdp_session::fetch_devtools_version_with_retry(port)
+    .map_err(|e| format!("http://127.0.0.1:{port}/json/version：{e}"))?;
+  Ok(cdp_session::format_http_check_ok(port, &info))
 }

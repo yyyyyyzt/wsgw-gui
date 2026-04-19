@@ -17,7 +17,7 @@
 2. 完全退出 Chrome 后，在终端用调试参数启动（示例）：  
    `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222`  
    （或使用 Chromium；端口与 `.env` 一致即可。）  
-3. 在项目根目录执行 `npm run tauri:dev`，在应用内先点 **「检测 CDP（TCP + HTTP）」**，再点 **「运行 Midscene 最小探活」**。  
+3. 在项目根目录执行 `npm run tauri:dev`，在应用内先点 **「检测 CDP（TCP + HTTP + 会话）」**，再点 **「运行 Midscene 最小探活」**。  
 4. 若仅做 UI/逻辑开发、暂不连浏览器，可跳过 CDP 按钮；发布前务必在 Windows 上跑通完整流程。
 
 ## 核心特性
@@ -26,6 +26,7 @@
 ✅ Midscene + `puppeteer-core` 在独立 Node 子进程中运行，由用户点击触发（符合本地自动化、不后台自启的约束）  
 ✅ 轻量打包方向：相比 Electron 体积更小（具体体积随依赖与资源而定）  
 ✅ **里程碑 B1**：除 TCP 外，对 `http://127.0.0.1:<端口>/json/version` 做 HTTP/JSON 校验，确认存在 `webSocketDebuggerUrl`  
+✅ **里程碑 B2**：进程内缓存 `webSocketDebuggerUrl`、解析重试（`WSGW_CDP_RESOLVE_*`）、WebSocket 握手校验；运行探活时向子进程注入已解析 URL，复用同一浏览器上下文  
 ⏳ 内置业务任务（如百度新闻整理）计划在后续里程碑（B3）补齐
 
 ## 开发准备
@@ -65,17 +66,21 @@ npm run tauri:dev
 3. **CDP 连接信息**（二选一；同时配置时 **WSGW_CDP_WS_URL 优先**）：
    - `WSGW_CDP_WS_URL`：完整 WebSocket 地址（来自 `chrome://inspect` 或 `http://127.0.0.1:<端口>/json/version` 的 `webSocketDebuggerUrl`）。  
    - `WSGW_DEBUG_PORT`：仅端口号；若 **既未设置 URL 也未设置端口**，主进程会默认使用 **`9222`**（与 README 中 Chrome 快捷方式示例一致）。  
-4. **Midscene 子进程**仍通过 `scripts/run-minimal-midscene.mts` 内的 `dotenv/config` 读取**当前工作目录**下的 `.env`；开发时通常与仓库根目录一致。若子进程未读到变量，请确认从项目根目录启动 `tauri dev`，或依赖主进程已通过环境变量传入的值（点击「运行探活」时由 Rust 注入 `WSGW_*`）。
+4. **Midscene 子进程**：脚本仍可通过 `dotenv/config` 读取工作目录下的 `.env`；**运行探活**时，Rust 主进程会将已解析/缓存的 **`WSGW_CDP_WS_URL` 注入子进程**（端口模式下与 Node 侧自行解析结果一致），便于复用会话。开发时请从仓库根目录启动 `tauri dev`。
 
-### Midscene 最小探活与 CDP 检测（里程碑 A2 + A4 + B1）
+### Midscene 最小探活与 CDP 检测（里程碑 A2 + A4 + B1 + B2）
 
 1. 用远程调试参数启动本机 Chrome/Chromium（Windows 见下文「首次使用」；**macOS 见上文「macOS 上测试 CDP」**）。  
-2. 按上文配置 `.env`。  
-3. 在客户端窗口点击 **「检测 CDP（TCP + HTTP）」**：
+2. 按上文配置 `.env`。可选：`WSGW_CDP_RESOLVE_RETRIES`（默认 5）、`WSGW_CDP_RESOLVE_DELAY_MS`（默认 400），用于端口模式下解析 `/json/version` 的重试。  
+3. 在客户端窗口点击 **「检测 CDP（TCP + HTTP + 会话）」**：
    - **① TCP**：检测 `127.0.0.1:<WSGW_DEBUG_PORT>` 是否可连接（约 2 秒超时）；  
-   - **② HTTP/JSON**：请求 `http://127.0.0.1:<端口>/json/version`，校验 HTTP 成功且 JSON 中含 **`webSocketDebuggerUrl`**；若已配置 `WSGW_CDP_WS_URL`，两步中相关步骤会提示跳过并直接以 WebSocket 为准。  
-4. 点击 **「运行 Midscene 最小探活」**：拉起 Node 子进程，完成 CDP 与 `PuppeteerAgent` 探活；成功时日志显示当前活动页 URL。  
-5. 界面状态 pill 展示 **未连接 / 连接中 / 已连接 / 执行中 / 完成 / 失败**（与 `progress.md` 里程碑 A4 对齐）。
+   - **② HTTP/JSON**：请求 `http://127.0.0.1:<端口>/json/version`，带重试地解析 **`webSocketDebuggerUrl`**；若已配置 `WSGW_CDP_WS_URL`，本步会提示跳过 HTTP 探测。  
+   - **③ WebSocket 会话**：对解析到的地址做一次 **CDP WebSocket 握手**（`tungstenite`），成功后将 URL **缓存在应用进程内**；后续「运行探活」优先使用该缓存，减少子进程重复解析。  
+4. 可选：点击 **「清除 CDP 缓存」** 丢弃已缓存的 WebSocket（例如 Chrome 重启后）。  
+5. 点击 **「运行 Midscene 最小探活」**：主进程向子进程注入 `WSGW_CDP_WS_URL`，拉起 Node 完成 `PuppeteerAgent` 探活；成功时日志显示当前活动页 URL。  
+6. 界面状态 pill 展示 **未连接 / 连接中 / 已连接 / 执行中 / 完成 / 失败**（与 `progress.md` 里程碑 A4 对齐）。
+
+> **说明**：当前 WebSocket 校验仅针对本机 **`ws://`**；若你使用 **`wss://`** 远程端点，`establish_cdp_session` 会返回明确错误（可在后续版本扩展）。
 
 说明：
 
@@ -121,4 +126,4 @@ npm run tauri:build
 
 1. 启动本客户端  
 2. 配置好 `.env`（或使用默认端口 9222）  
-3. 先 **「检测 CDP（TCP + HTTP）」** 再 **「运行 Midscene 最小探活」**；后续里程碑将在此通道上扩展正式业务任务（见 `progress.md` 里程碑 B）
+3. 先 **「检测 CDP（TCP + HTTP + 会话）」** 再 **「运行 Midscene 最小探活」**；后续里程碑将在此通道上扩展正式业务任务（见 `progress.md` 里程碑 B）
