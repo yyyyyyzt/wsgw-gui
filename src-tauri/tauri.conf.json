@@ -30,7 +30,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "resources/midscene-minimal.mjs": "midscene-minimal.mjs"
+      "resources/midscene-minimal.mjs": "midscene-minimal.mjs",
+      "resources/midscene-builtin-news.mjs": "midscene-builtin-news.mjs"
     },
     "icon": [
       "icons/32x32.png",

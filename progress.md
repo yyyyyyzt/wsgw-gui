@@ -15,6 +15,7 @@
 | v0.5 | 2026-04-18 | 完成里程碑 A3/A4：Rust 端 .env 加载与缺省端口、CDP TCP 检测命令、界面状态 pill |
 | v0.6 | 2026-04-18 | 完成里程碑 B1：/json/version HTTP+JSON 校验；README 补充 macOS 开发与 Windows 发布说明 |
 | v0.7 | 2026-04-18 | 完成里程碑 B2：CDP WebSocket 缓存、解析重试、握手校验、探活注入复用 |
+| v0.8 | 2026-04-18 | 完成里程碑 B3：内置新闻热点整理任务脚本与 `run_builtin_news_task` |
 
 ## 项目目标（MVP）
 
@@ -39,7 +40,7 @@
 | ---- | ---- | ------ | -------- |
 | B1. Chrome 调试端口检测 | ✅ 已完成 | `check_cdp_reachable`（TCP）+ `check_cdp_devtools_json`（HTTP/JSON） | 端口关闭或返回非 DevTools JSON 时错误可读；成功时确认存在 `webSocketDebuggerUrl` |
 | B2. CDP 连接与会话管理 | ✅ 已完成 | `cdp_session` 模块、`establish_cdp_session` / `clear_cdp_session`、进程内 WS 缓存、子进程 URL 注入 | 解析带重试；握手校验后缓存；多次探活复用同一 CDP 端点（用户显式建立会话或首次探活时解析） |
-| B3. 内置测试任务（百度新闻整理） | ⏳ 未开始 | 示例任务脚本与执行入口 | 一键触发任务并输出结构化日志与结果 |
+| B3. 内置测试任务（百度新闻整理） | ✅ 已完成 | `scripts/run-builtin-news-task.mts`、`midscene-builtin-news.mjs`、`run_builtin_news_task`、界面按钮 | 用户点击后打开可配置新闻页并输出标题预览；CDP 由主进程注入 |
 | B4. 前端实时日志转发 | ⏳ 未开始 | 流式日志通道（事件或 IPC） | 任务执行中前端实时刷新日志，不再“任务结束后一次性返回” |
 
 ### 里程碑 C：可交付与扩展能力
@@ -67,7 +68,11 @@
 
 ### Iteration-5：里程碑 B3（内置示例任务）
 
-- [ ] 内置测试任务（百度新闻整理）与执行入口（里程碑 B3）
+- [x] 内置测试任务（百度新闻整理）与执行入口（里程碑 B3）
+
+### Iteration-6：里程碑 B4（流式日志）
+
+- [ ] 任务执行中通过 IPC 流式转发日志（里程碑 B4）
 
 ### Iteration-1：里程碑 A1（工程骨架初始化）— 已收尾
 
@@ -89,6 +94,7 @@
 | 2026-04-18 | 配置与 UI 状态：dotenvy 启动加载、默认端口、TCP 检测命令、配置摘要命令、状态 pill 与双按钮 | `src-tauri/src/`、`src/main.ts`、`src/styles.css`、`README.md`、`.env.example`、`progress.md`、`Cargo.toml`、`Cargo.lock` |
 | 2026-04-18 | B1 HTTP/JSON 端口检测、`check_cdp_devtools_json` 命令；检测按钮串联 TCP+HTTP；README macOS/Windows 平台策略 | `src-tauri/src/env_bootstrap.rs`、`src-tauri/src/lib.rs`、`src/main.ts`、`README.md`、`progress.md` |
 | 2026-04-18 | B2：`cdp_session`、WS 握手、缓存与重试、探活注入；前端检测第三步与会话清除按钮；`tungstenite`/`url` 依赖 | `src-tauri/src/cdp_session.rs`、`src-tauri/src/lib.rs`、`src/main.ts`、`src/styles.css`、`README.md`、`.env.example`、`progress.md`、`Cargo.toml`、`Cargo.lock` |
+| 2026-04-18 | B3：新闻任务 bundle、`run_builtin_news_task`、资源打包、前端按钮与文档 | `scripts/run-builtin-news-task.mts`、`package.json`、`src-tauri/`、`src/main.ts`、`README.md`、`.env.example`、`progress.md` |
 
 ## 文档协同机制（必须执行）
 
@@ -100,8 +106,8 @@
 
 ## 当前状态
 
-- 当前版本：v0.7
-- 当前阶段：Iteration-5（里程碑 B3：内置示例任务）
-- 最近完成：CDP WebSocket 解析重试、进程内缓存、`establish_cdp_session` 握手、探活子进程统一注入 `WSGW_CDP_WS_URL` 以复用浏览器上下文
-- 下一步待开发：里程碑 B3（百度新闻整理等内置任务脚本与入口）
+- 当前版本：v0.8
+- 当前阶段：Iteration-6（里程碑 B4：流式日志）
+- 最近完成：内置新闻热点任务（DOM 抓取标题）、双 bundle 与资源打包、Rust/前端入口
+- 下一步待开发：里程碑 B4（IPC 流式日志）
 - 未解决问题：按仓库历史约定可跳过自动化测试；**wss://** 远程 CDP 握手未实现（仅本机 `ws://`）；发布前建议在 **Windows** 上完成安装包与内网联调验证

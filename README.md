@@ -27,7 +27,8 @@
 ✅ 轻量打包方向：相比 Electron 体积更小（具体体积随依赖与资源而定）  
 ✅ **里程碑 B1**：除 TCP 外，对 `http://127.0.0.1:<端口>/json/version` 做 HTTP/JSON 校验，确认存在 `webSocketDebuggerUrl`  
 ✅ **里程碑 B2**：进程内缓存 `webSocketDebuggerUrl`、解析重试（`WSGW_CDP_RESOLVE_*`）、WebSocket 握手校验；运行探活时向子进程注入已解析 URL，复用同一浏览器上下文  
-⏳ 内置业务任务（如百度新闻整理）计划在后续里程碑（B3）补齐
+✅ **里程碑 B3**：内置「新闻热点整理」任务（`run_builtin_news_task` + `midscene-builtin-news.mjs`）：打开可配置新闻页（默认 `https://news.baidu.com/`，`WSGW_NEWS_URL` 覆盖）并用 DOM 抓取标题列表  
+⏳ **里程碑 B4**：流式日志（计划中）
 
 ## 开发准备
 
@@ -77,7 +78,7 @@ npm run tauri:dev
    - **② HTTP/JSON**：请求 `http://127.0.0.1:<端口>/json/version`，带重试地解析 **`webSocketDebuggerUrl`**；若已配置 `WSGW_CDP_WS_URL`，本步会提示跳过 HTTP 探测。  
    - **③ WebSocket 会话**：对解析到的地址做一次 **CDP WebSocket 握手**（`tungstenite`），成功后将 URL **缓存在应用进程内**；后续「运行探活」优先使用该缓存，减少子进程重复解析。  
 4. 可选：点击 **「清除 CDP 缓存」** 丢弃已缓存的 WebSocket（例如 Chrome 重启后）。  
-5. 点击 **「运行 Midscene 最小探活」**：主进程向子进程注入 `WSGW_CDP_WS_URL`，拉起 Node 完成 `PuppeteerAgent` 探活；成功时日志显示当前活动页 URL。  
+5. 点击 **「运行 Midscene 最小探活」** 或 **「执行内置任务：新闻热点整理」**：主进程向子进程注入 `WSGW_CDP_WS_URL`；新闻任务会导航到 **`WSGW_NEWS_URL`**（默认百度新闻）并输出整理后的标题预览。  
 6. 界面状态 pill 展示 **未连接 / 连接中 / 已连接 / 执行中 / 完成 / 失败**（与 `progress.md` 里程碑 A4 对齐）。
 
 > **说明**：当前 WebSocket 校验仅针对本机 **`ws://`**；若你使用 **`wss://`** 远程端点，`establish_cdp_session` 会返回明确错误（可在后续版本扩展）。
@@ -92,6 +93,8 @@ npm run tauri:dev
 | 命令 | 用途 |
 |------|------|
 | `npm run bundle:midscene-worker` | 将 `scripts/run-minimal-midscene.mts` 打包为 `src-tauri/resources/midscene-minimal.mjs`（供 Tauri 子进程执行） |
+| `npm run bundle:midscene-news` | 将 `scripts/run-builtin-news-task.mts` 打包为 `src-tauri/resources/midscene-builtin-news.mjs` |
+| `npm run bundle:midscene-all` | 同时执行上述两个 bundle（`predev` / `prebuild` 已默认调用） |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run build` | 前端 `tsc` + Vite 构建（会先执行 `bundle:midscene-worker`） |
 
@@ -126,4 +129,4 @@ npm run tauri:build
 
 1. 启动本客户端  
 2. 配置好 `.env`（或使用默认端口 9222）  
-3. 先 **「检测 CDP（TCP + HTTP + 会话）」** 再 **「运行 Midscene 最小探活」**；后续里程碑将在此通道上扩展正式业务任务（见 `progress.md` 里程碑 B）
+3. 先 **「检测 CDP（TCP + HTTP + 会话）」**，再运行 **最小探活** 或 **新闻热点整理**；内网可将 `WSGW_NEWS_URL` 指向门户首页以验收抓取逻辑（见 `progress.md` 里程碑 B3）

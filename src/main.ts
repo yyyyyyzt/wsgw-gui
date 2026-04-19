@@ -65,6 +65,7 @@ function renderLayout(): void {
           <button type="button" id="btn-check">检测 CDP（TCP + HTTP + 会话）</button>
           <button type="button" id="btn-clear" class="secondary">清除 CDP 缓存</button>
           <button type="button" id="btn-run">运行 Midscene 最小探活</button>
+          <button type="button" id="btn-news">执行内置任务：新闻热点整理</button>
         </div>
         <ol id="logs" class="log"></ol>
       </section>
@@ -112,10 +113,12 @@ function syncButtonDisabled(): void {
   const checkBtn = document.querySelector<HTMLButtonElement>("#btn-check");
   const clearBtn = document.querySelector<HTMLButtonElement>("#btn-clear");
   const runBtn = document.querySelector<HTMLButtonElement>("#btn-run");
+  const newsBtn = document.querySelector<HTMLButtonElement>("#btn-news");
   const disabled = state.busy;
   if (checkBtn) checkBtn.disabled = disabled;
   if (clearBtn) clearBtn.disabled = disabled;
   if (runBtn) runBtn.disabled = disabled;
+  if (newsBtn) newsBtn.disabled = disabled;
 }
 
 function setBusy(busy: boolean): void {
@@ -214,6 +217,22 @@ async function onRunMidscene(): Promise<void> {
   }
 }
 
+async function onRunBuiltinNews(): Promise<void> {
+  setBusy(true);
+  setUiStatus("executing");
+  pushLog("[automation] 内置任务：打开新闻页并整理热点标题（DOM 抓取，默认 news.baidu.com，可用 WSGW_NEWS_URL 覆盖）…");
+  try {
+    const message = await invoke<string>("run_builtin_news_task");
+    pushLog(`[automation] ${message}`);
+    setUiStatus("completed");
+  } catch (raw) {
+    pushLog(`[automation] 新闻任务失败：${formatInvokeError(raw)}`);
+    setUiStatus("failed");
+  } finally {
+    setBusy(false);
+  }
+}
+
 function bindEvents(): void {
   document.querySelector("#btn-check")?.addEventListener("click", () => {
     void onCheckCdp();
@@ -223,6 +242,9 @@ function bindEvents(): void {
   });
   document.querySelector("#btn-run")?.addEventListener("click", () => {
     void onRunMidscene();
+  });
+  document.querySelector("#btn-news")?.addEventListener("click", () => {
+    void onRunBuiltinNews();
   });
 }
 

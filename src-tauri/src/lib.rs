@@ -23,6 +23,17 @@ struct MidsceneMinimalOk {
   error: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BuiltinNewsTaskOk {
+  ok: bool,
+  url: Option<String>,
+  cdp_source: Option<String>,
+  headlines: Option<Vec<String>>,
+  source_url: Option<String>,
+  error: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeConfigSummary {
@@ -117,6 +128,40 @@ fn resolve_midscene_script_path(app: &tauri::AppHandle) -> Result<PathBuf, Strin
 
   Err(
     "未找到 midscene-minimal.mjs。开发环境请先执行 npm run bundle:midscene-worker；发布包请确认 tauri.conf.json 的 bundle.resources 已包含该文件。"
+      .into(),
+  )
+}
+
+fn resolve_builtin_news_script_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+  if let Ok(override_path) = std::env::var("WSGW_MIDSCENE_NEWS_SCRIPT") {
+    let p = PathBuf::from(override_path.trim());
+    if p.is_file() {
+      return Ok(p);
+    }
+    return Err(format!(
+      "WSGW_MIDSCENE_NEWS_SCRIPT 已设置但文件不存在：{}",
+      p.display()
+    ));
+  }
+
+  if cfg!(debug_assertions) {
+    let dev_candidate =
+      PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/midscene-builtin-news.mjs");
+    if dev_candidate.is_file() {
+      return Ok(dev_candidate);
+    }
+  }
+
+  let bundled = app
+    .path()
+    .resolve("midscene-builtin-news.mjs", BaseDirectory::Resource)
+    .map_err(|e| format!("无法解析内置新闻任务脚本路径：{e}"))?;
+  if bundled.is_file() {
+    return Ok(bundled);
+  }
+
+  Err(
+    "未找到 midscene-builtin-news.mjs。请执行 npm run bundle:midscene-news（或 npm run bundle:midscene-all）。"
       .into(),
   )
 }
@@ -246,6 +291,118 @@ async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
   .map_err(|e| format!("后台任务 Join 失败：{e}"))?
 }
 
+/// 用户点击：内置「新闻热点」演示任务（打开新闻页并抓取标题列表，里程碑 B3）。
+#[tauri::command]
+async fn run_builtin_news_task(app: tauri::AppHandle) -> Result<String, String> {
+  env_bootstrap::validate_cdp_settings_for_child()?;
+
+  let script = resolve_builtin_news_script_path(&app)?;
+  let node = find_node_binary().to_string();
+
+  let debug_port = std::env::var("WSGW_DEBUG_PORT")
+    .ok()
+    .filter(|s| !s.trim().is_empty());
+  let news_url = std::env::var("WSGW_NEWS_URL")
+    .ok()
+    .filter(|s| !s.trim().is_empty());
+
+  tauri::async_runtime::spawn_blocking(move || {
+    let (resolved_ws, _, _) = CDP_CACHE.resolve_endpoint(false)?;
+
+    let mut cmd = Command::new(&node);
+    cmd.arg(&script);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    cmd.env("WSGW_CDP_WS_URL", &resolved_ws);
+    if let Some(v) = debug_port {
+      cmd.env("WSGW_DEBUG_PORT", v);
+    }
+    if let Some(v) = news_url {
+      cmd.env("WSGW_NEWS_URL", v);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| {
+      format!("无法启动 Node 子进程（{node}）：{e}。请确认已安装 Node.js 且已加入 PATH。")
+    })?;
+
+    let stdout = child
+      .stdout
+      .take()
+      .ok_or_else(|| "子进程未提供 stdout".to_string())?;
+    let stderr = child.stderr.take();
+
+    let stderr_thread = std::thread::spawn(move || -> String {
+      let Some(mut err) = stderr else {
+        return String::new();
+      };
+      let mut buf = String::new();
+      let _ = std::io::Read::read_to_string(&mut err, &mut buf);
+      buf
+    });
+
+    let mut last_json_line: Option<String> = None;
+    for line in BufReader::new(stdout).lines() {
+      let line = line.map_err(|e| format!("读取子进程输出失败：{e}"))?;
+      let t = line.trim();
+      if t.starts_with('{') {
+        last_json_line = Some(t.to_string());
+      }
+    }
+
+    let status = child
+      .wait()
+      .map_err(|e| format!("等待子进程结束失败：{e}"))?;
+    let stderr_body = stderr_thread.join().unwrap_or_default();
+
+    if !status.success() {
+      let hint = last_json_line.clone().unwrap_or_default();
+      return Err(format!(
+        "新闻任务子进程退出码 {:?}。stderr：{}。最后一行 JSON：{}",
+        status.code(),
+        stderr_body.trim(),
+        hint
+      ));
+    }
+
+    let line = last_json_line.ok_or_else(|| {
+      format!(
+        "子进程未输出结果 JSON。stderr：{}",
+        stderr_body.trim()
+      )
+    })?;
+
+    let parsed: BuiltinNewsTaskOk =
+      serde_json::from_str(&line).map_err(|e| format!("解析子进程结果失败（{e}）：{line}"))?;
+
+    if parsed.ok {
+      let page_url = parsed.url.unwrap_or_default();
+      let src = parsed.cdp_source.unwrap_or_else(|| "unknown".into());
+      let from = parsed.source_url.unwrap_or_default();
+      let titles = parsed.headlines.unwrap_or_default();
+      let preview = titles
+        .iter()
+        .take(5)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" | ");
+      let more = if titles.len() > 5 {
+        format!("（共 {} 条，以下仅展示前 5 条）", titles.len())
+      } else {
+        format!("（共 {} 条）", titles.len())
+      };
+      Ok(format!(
+        "新闻热点整理完成：来源页 {from}；当前页 {page_url}；CDP 来源 {src}。{more} 预览：{preview}",
+      ))
+    } else {
+      Err(parsed.error.unwrap_or_else(|| "未知错误".into()))
+    }
+  })
+  .await
+  .map_err(|e| format!("后台任务 Join 失败：{e}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   env_bootstrap::load_dotenv_files();
@@ -254,6 +411,7 @@ pub fn run() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
       run_midscene_minimal,
+      run_builtin_news_task,
       check_cdp_reachable,
       check_cdp_devtools_json,
       establish_cdp_session,

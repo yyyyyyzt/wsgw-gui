@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "bundle:midscene-worker": "esbuild scripts/run-minimal-midscene.mts --bundle --platform=node --target=node20 --format=esm --outfile=src-tauri/resources/midscene-minimal.mjs --banner:js=\"import { createRequire } from 'module';const require=createRequire(import.meta.url);\"",
-    "predev": "npm run bundle:midscene-worker",
-    "prebuild": "npm run bundle:midscene-worker",
+    "bundle:midscene-news": "esbuild scripts/run-builtin-news-task.mts --bundle --platform=node --target=node20 --format=esm --outfile=src-tauri/resources/midscene-builtin-news.mjs --banner:js=\"import { createRequire } from 'module';const require=createRequire(import.meta.url);\"",
+    "bundle:midscene-all": "npm run bundle:midscene-worker && npm run bundle:midscene-news",
+    "predev": "npm run bundle:midscene-all",
+    "prebuild": "npm run bundle:midscene-all",
     "dev": "vite --host 0.0.0.0 --port 1420",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
