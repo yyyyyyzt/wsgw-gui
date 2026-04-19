@@ -38,14 +38,22 @@ cp .env.example .env
 npm run tauri:dev
 ```
 
-### Midscene 最小探活（里程碑 A2）
+### 配置（里程碑 A3）
+
+1. 复制模板：`cp .env.example .env`（Windows 上可手动复制并重命名）。  
+2. **Rust 主进程**在启动时会依次尝试加载 `.env`：当前工作目录 → 可执行文件所在目录 → 开发时仓库根目录（`src-tauri/../.env`）。也可用 **`WSGW_ENV_FILE`** 指向任意 `.env` 文件的绝对路径（会覆盖已存在的环境变量）。  
+3. **CDP 连接信息**（二选一；同时配置时 **WSGW_CDP_WS_URL 优先**）：
+   - `WSGW_CDP_WS_URL`：完整 WebSocket 地址（来自 `chrome://inspect` 或 `http://127.0.0.1:<端口>/json/version` 的 `webSocketDebuggerUrl`）。  
+   - `WSGW_DEBUG_PORT`：仅端口号；若 **既未设置 URL 也未设置端口**，主进程会默认使用 **`9222`**（与 README 中 Chrome 快捷方式示例一致）。  
+4. **Midscene 子进程**仍通过 `scripts/run-minimal-midscene.mts` 内的 `dotenv/config` 读取**当前工作目录**下的 `.env`；开发时通常与仓库根目录一致。若子进程未读到变量，请确认从项目根目录启动 `tauri dev`，或依赖主进程已通过环境变量传入的值（点击「运行探活」时由 Rust 注入 `WSGW_*`）。
+
+### Midscene 最小探活与 CDP 检测（里程碑 A2 + A4）
 
 1. 按下文「开启 Chrome 远程调试」用 `--remote-debugging-port=9222`（或自定义端口）启动 Chrome。  
-2. 在项目根目录配置环境变量（可复制 `.env.example` 为 `.env`；子进程通过 `dotenv/config` 读取）：
-   - **推荐**：`WSGW_DEBUG_PORT=9222`（脚本会访问 `http://127.0.0.1:<端口>/json/version` 解析 `webSocketDebuggerUrl`）  
-   - **或**：`WSGW_CDP_WS_URL=ws://...`（完整 CDP WebSocket 地址）  
-   - **可选**：`WSGW_DEMO_URL=https://...`（若设置，探活前会导航到该 URL；须用户显式配置，默认不导航）  
-3. 在客户端窗口点击「运行 Midscene 最小探活」。成功时日志会显示当前活动页 URL。
+2. 按上文配置 `.env`。  
+3. 在客户端窗口先点击 **「检测 CDP（TCP）」**：仅检测本机 `127.0.0.1:<WSGW_DEBUG_PORT>` 是否能建立 TCP 连接（约 2 秒超时）；若已配置 `WSGW_CDP_WS_URL` 则跳过端口探测并提示将直接使用 WebSocket。  
+4. 点击 **「运行 Midscene 最小探活」**：拉起 Node 子进程，完成 CDP 与 `PuppeteerAgent` 探活；成功时日志显示当前活动页 URL。  
+5. 界面状态 pill 展示 **未连接 / 连接中 / 已连接 / 执行中 / 完成 / 失败**（与 `progress.md` 里程碑 A4 对齐）。
 
 说明：
 
@@ -90,5 +98,5 @@ npm run tauri:build
 ### 执行自动化（当前阶段）
 
 1. 启动本客户端  
-2. 配置好 `WSGW_DEBUG_PORT` 或 `WSGW_CDP_WS_URL`（见上文）  
-3. 点击「运行 Midscene 最小探活」；后续里程碑将在此通道上扩展正式业务任务（见 `progress.md` 里程碑 B）
+2. 配置好 `.env`（或使用默认端口 9222）  
+3. 先「检测 CDP」再「运行 Midscene 最小探活」；后续里程碑将在此通道上扩展正式业务任务（见 `progress.md` 里程碑 B）

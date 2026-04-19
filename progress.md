@@ -12,6 +12,7 @@
 | v0.2 | 2026-04-18 | 重构开发计划，补充验收标准与文档协同机制 |
 | v0.3 | 2026-04-18 | 完成里程碑 A1：初始化 Tauri 工程骨架与最小页面 |
 | v0.4 | 2026-04-18 | 完成里程碑 A2：Midscene + puppeteer-core 最小 CDP 探活（Tauri 命令 + 子进程） |
+| v0.5 | 2026-04-18 | 完成里程碑 A3/A4：Rust 端 .env 加载与缺省端口、CDP TCP 检测命令、界面状态 pill |
 
 ## 项目目标（MVP）
 
@@ -27,8 +28,8 @@
 | ---- | ---- | ------ | -------- |
 | A1. 初始化 Tauri 项目结构（前端 + `src-tauri`） | ✅ 已完成 | 可运行工程目录、`package.json`、`src-tauri/Cargo.toml` | 执行 `npm run tauri:dev` 可启动开发环境 |
 | A2. 接入 Midscene 运行时依赖与最小调用封装 | ✅ 已完成 | `scripts/run-minimal-midscene.mts`、esbuild bundle、`run_midscene_minimal` 命令、`.env.example` | 用户点击按钮后通过 Tauri 拉起 Node 子进程，完成 CDP 连接与 Midscene `PuppeteerAgent` 实例化并返回当前页 URL |
-| A3. 增加配置体系（`.env.example`、读取逻辑、缺省值） | ⏳ 未开始 | 环境变量模板、配置加载模块 | 未配置关键变量时有明确错误提示，不崩溃 |
-| A4. 提供基础界面与状态流转 | ⏳ 未开始 | 首页基础 UI、状态枚举、日志展示 | 可看到“未连接/连接中/已连接/执行中/完成/失败”状态 |
+| A3. 增加配置体系（`.env.example`、读取逻辑、缺省值） | ✅ 已完成 | `env_bootstrap`（dotenvy）、缺省 `WSGW_DEBUG_PORT=9222`、`WSGW_ENV_FILE`、`get_runtime_config_summary` | 启动加载 `.env`；无 URL 且无端口时默认 9222；非法端口或缺失连接信息时返回可读错误 |
+| A4. 提供基础界面与状态流转 | ✅ 已完成 | 状态 pill 样式、`check_cdp_reachable` 与双按钮流程 | 界面展示未连接/连接中/已连接/执行中/完成/失败；日志区保留 |
 
 ### 里程碑 B：自动化闭环能力
 
@@ -51,8 +52,12 @@
 
 ### Iteration-2：里程碑 A3 / A4（配置与界面状态）
 
-- [ ] 增加配置体系（`.env` 与读取逻辑、缺省值与错误提示）（里程碑 A3）
-- [ ] 完善首页状态枚举与日志区（里程碑 A4）
+- [x] 增加配置体系（`.env` 与读取逻辑、缺省值与错误提示）（里程碑 A3）
+- [x] 完善首页状态枚举与日志区（里程碑 A4）
+
+### Iteration-3：里程碑 B1（端口检测深化）
+
+- [ ] Chrome 调试端口 HTTP/json 探测与可读错误（里程碑 B1）
 
 ### Iteration-1：里程碑 A1（工程骨架初始化）— 已收尾
 
@@ -71,6 +76,7 @@
 | 2026-04-18 | 补充开发准备、文档协同流程说明 | `README.md`、`agents.md` |
 | 2026-04-18 | 初始化 Tauri 工程骨架与最小界面，补充运行命令说明 | `package.json`、`src/`、`src-tauri/`、`README.md`、`progress.md` |
 | 2026-04-18 | 接入 Midscene 最小探活：esbuild 打包脚本、Tauri `run_midscene_minimal`、bundle resources、环境变量模板与 README | `package.json`、`scripts/`、`src-tauri/`、`src/main.ts`、`.env.example`、`README.md`、`progress.md`、`.gitignore`、`rust-toolchain.toml` |
+| 2026-04-18 | 配置与 UI 状态：dotenvy 启动加载、默认端口、TCP 检测命令、配置摘要命令、状态 pill 与双按钮 | `src-tauri/src/`、`src/main.ts`、`src/styles.css`、`README.md`、`.env.example`、`progress.md`、`Cargo.toml`、`Cargo.lock` |
 
 ## 文档协同机制（必须执行）
 
@@ -82,8 +88,8 @@
 
 ## 当前状态
 
-- 当前版本：v0.4
-- 当前阶段：Iteration-2（里程碑 A2 已完成，进入配置体系 A3 与界面状态 A4）
-- 最近完成：Midscene + puppeteer-core CDP 最小探活链路、资源打包与文档同步
-- 下一步待开发：配置加载与缺省值（A3）、界面状态流转（A4）
+- 当前版本：v0.5
+- 当前阶段：Iteration-3（里程碑 B1：端口检测深化）
+- 最近完成：Rust 端 `.env` 加载与缺省调试端口、CDP TCP 检测与配置摘要 IPC、前端六态 UI
+- 下一步待开发：里程碑 B1（HTTP/json 级端口探测与错误文案）
 - 未解决问题：按本轮要求跳过自动化/手动测试；需在 Windows + 已安装 Node 的环境联调验证

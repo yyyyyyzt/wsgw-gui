@@ -1,8 +1,10 @@
+mod env_bootstrap;
+
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::path::BaseDirectory;
 use tauri::Manager;
 
@@ -13,6 +15,31 @@ struct MidsceneMinimalOk {
   url: Option<String>,
   cdp_source: Option<String>,
   error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeConfigSummary {
+  pub wsgw_debug_port: String,
+  pub wsgw_cdp_ws_url_configured: bool,
+  pub wsgw_demo_url_configured: bool,
+}
+
+/// 供前端展示当前生效配置（不含密钥；仅布尔与端口字符串）。
+#[tauri::command]
+fn get_runtime_config_summary() -> RuntimeConfigSummary {
+  let ws_set = std::env::var("WSGW_CDP_WS_URL")
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  let port = std::env::var("WSGW_DEBUG_PORT").unwrap_or_else(|_| "9222".into());
+  let demo = std::env::var("WSGW_DEMO_URL")
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  RuntimeConfigSummary {
+    wsgw_debug_port: port.trim().to_string(),
+    wsgw_cdp_ws_url_configured: ws_set,
+    wsgw_demo_url_configured: demo,
+  }
 }
 
 fn resolve_midscene_script_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -28,7 +55,8 @@ fn resolve_midscene_script_path(app: &tauri::AppHandle) -> Result<PathBuf, Strin
   }
 
   if cfg!(debug_assertions) {
-    let dev_candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/midscene-minimal.mjs");
+    let dev_candidate =
+      PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/midscene-minimal.mjs");
     if dev_candidate.is_file() {
       return Ok(dev_candidate);
     }
@@ -56,15 +84,31 @@ fn find_node_binary() -> &'static str {
   }
 }
 
+/// 用户点击后执行：对本机调试端口做 TCP 探测（不发起 HTTP/CDP 协议握手）。
+#[tauri::command]
+async fn check_cdp_reachable() -> Result<String, String> {
+  tauri::async_runtime::spawn_blocking(|| env_bootstrap::check_debug_port_tcp())
+    .await
+    .map_err(|e| format!("后台任务 Join 失败：{e}"))?
+}
+
 /// 用户点击界面后由前端调用：在子进程中运行打包后的 Midscene 最小探活脚本（不自动执行）。
 #[tauri::command]
 async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
+  env_bootstrap::validate_cdp_settings_for_child()?;
+
   let script = resolve_midscene_script_path(&app)?;
   let node = find_node_binary().to_string();
 
-  let cdp_ws = std::env::var("WSGW_CDP_WS_URL").ok().filter(|s| !s.trim().is_empty());
-  let debug_port = std::env::var("WSGW_DEBUG_PORT").ok().filter(|s| !s.trim().is_empty());
-  let demo_url = std::env::var("WSGW_DEMO_URL").ok().filter(|s| !s.trim().is_empty());
+  let cdp_ws = std::env::var("WSGW_CDP_WS_URL")
+    .ok()
+    .filter(|s| !s.trim().is_empty());
+  let debug_port = std::env::var("WSGW_DEBUG_PORT")
+    .ok()
+    .filter(|s| !s.trim().is_empty());
+  let demo_url = std::env::var("WSGW_DEMO_URL")
+    .ok()
+    .filter(|s| !s.trim().is_empty());
 
   tauri::async_runtime::spawn_blocking(move || {
     let mut cmd = Command::new(&node);
@@ -84,9 +128,7 @@ async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
     }
 
     let mut child = cmd.spawn().map_err(|e| {
-      format!(
-        "无法启动 Node 子进程（{node}）：{e}。请确认已安装 Node.js 且已加入 PATH。"
-      )
+      format!("无法启动 Node 子进程（{node}）：{e}。请确认已安装 Node.js 且已加入 PATH。")
     })?;
 
     let stdout = child
@@ -155,8 +197,15 @@ async fn run_midscene_minimal(app: tauri::AppHandle) -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  env_bootstrap::load_dotenv_files();
+  env_bootstrap::apply_default_debug_port();
+
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![run_midscene_minimal])
+    .invoke_handler(tauri::generate_handler![
+      run_midscene_minimal,
+      check_cdp_reachable,
+      get_runtime_config_summary
+    ])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
