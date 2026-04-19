@@ -52,7 +52,7 @@ function renderLayout(): void {
     <main class="layout">
       <section class="card">
         <h1 class="title">WSGW GUI</h1>
-        <p class="subtitle">Tauri + Midscene Windows 自动化客户端（里程碑 A3/A4：配置与状态）</p>
+        <p class="subtitle">Tauri + Midscene：Windows 交付目标；可在 macOS 上开发与联调 CDP（见 README）</p>
       </section>
       <section class="card">
         <div id="status-pill" class="status-pill">
@@ -62,7 +62,7 @@ function renderLayout(): void {
         </div>
         <p class="config-hint" id="config-hint"></p>
         <div class="actions" style="margin-top: 12px;">
-          <button type="button" id="btn-check">检测 CDP（TCP）</button>
+          <button type="button" id="btn-check">检测 CDP（TCP + HTTP）</button>
           <button type="button" id="btn-run">运行 Midscene 最小探活</button>
         </div>
         <ol id="logs" class="log"></ol>
@@ -146,13 +146,24 @@ async function loadConfigSummary(): Promise<void> {
 async function onCheckCdp(): Promise<void> {
   setBusy(true);
   setUiStatus("connecting");
-  pushLog("[cdp] 正在检测本机调试端口（TCP，约 2 秒超时）…");
+  pushLog("[cdp] ① TCP：检测本机调试端口是否可连接（约 2 秒超时）…");
   try {
-    const msg = await invoke<string>("check_cdp_reachable");
-    pushLog(`[cdp] ${msg}`);
+    const tcpMsg = await invoke<string>("check_cdp_reachable");
+    pushLog(`[cdp] ${tcpMsg}`);
+  } catch (raw) {
+    pushLog(`[cdp] TCP 失败：${formatInvokeError(raw)}`);
+    setUiStatus("failed");
+    setBusy(false);
+    return;
+  }
+
+  pushLog("[cdp] ② HTTP：请求 /json/version 并校验 webSocketDebuggerUrl…");
+  try {
+    const httpMsg = await invoke<string>("check_cdp_devtools_json");
+    pushLog(`[cdp] ${httpMsg}`);
     setUiStatus("connected");
   } catch (raw) {
-    pushLog(`[cdp] ${formatInvokeError(raw)}`);
+    pushLog(`[cdp] HTTP/JSON 失败：${formatInvokeError(raw)}`);
     setUiStatus("failed");
   } finally {
     setBusy(false);
@@ -189,7 +200,7 @@ async function bootstrap(): Promise<void> {
   renderStatus();
   renderLogs();
   bindEvents();
-  pushLog("就绪：请先配置 .env（或使用默认端口 9222），建议先点「检测 CDP」再运行探活。");
+  pushLog("就绪：请先配置 .env（或使用默认端口 9222），建议先点「检测 CDP（TCP + HTTP）」再运行探活。");
   await loadConfigSummary();
 }
 

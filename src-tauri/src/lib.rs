@@ -84,10 +84,18 @@ fn find_node_binary() -> &'static str {
   }
 }
 
-/// 用户点击后执行：对本机调试端口做 TCP 探测（不发起 HTTP/CDP 协议握手）。
+/// 用户点击后执行：对本机调试端口做 TCP 探测（不发起 HTTP 请求）。
 #[tauri::command]
 async fn check_cdp_reachable() -> Result<String, String> {
   tauri::async_runtime::spawn_blocking(|| env_bootstrap::check_debug_port_tcp())
+    .await
+    .map_err(|e| format!("后台任务 Join 失败：{e}"))?
+}
+
+/// 用户点击后执行：请求 `/json/version` 并校验 `webSocketDebuggerUrl`（里程碑 B1）。
+#[tauri::command]
+async fn check_cdp_devtools_json() -> Result<String, String> {
+  tauri::async_runtime::spawn_blocking(|| env_bootstrap::check_debug_port_http_json())
     .await
     .map_err(|e| format!("后台任务 Join 失败：{e}"))?
 }
@@ -204,6 +212,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       run_midscene_minimal,
       check_cdp_reachable,
+      check_cdp_devtools_json,
       get_runtime_config_summary
     ])
     .setup(|app| {

@@ -13,6 +13,7 @@
 | v0.3 | 2026-04-18 | 完成里程碑 A1：初始化 Tauri 工程骨架与最小页面 |
 | v0.4 | 2026-04-18 | 完成里程碑 A2：Midscene + puppeteer-core 最小 CDP 探活（Tauri 命令 + 子进程） |
 | v0.5 | 2026-04-18 | 完成里程碑 A3/A4：Rust 端 .env 加载与缺省端口、CDP TCP 检测命令、界面状态 pill |
+| v0.6 | 2026-04-18 | 完成里程碑 B1：/json/version HTTP+JSON 校验；README 补充 macOS 开发与 Windows 发布说明 |
 
 ## 项目目标（MVP）
 
@@ -35,7 +36,7 @@
 
 | 任务 | 状态 | 产出物 | 验收标准 |
 | ---- | ---- | ------ | -------- |
-| B1. Chrome 调试端口检测 | ⏳ 未开始 | 端口探测逻辑与连接测试逻辑 | 未开启端口时返回可读提示，开启后可识别 |
+| B1. Chrome 调试端口检测 | ✅ 已完成 | `check_cdp_reachable`（TCP）+ `check_cdp_devtools_json`（HTTP/JSON） | 端口关闭或返回非 DevTools JSON 时错误可读；成功时确认存在 `webSocketDebuggerUrl` |
 | B2. CDP 连接与会话管理 | ⏳ 未开始 | 连接管理模块、重试策略 | 连接成功后可复用已登录浏览器上下文 |
 | B3. 内置测试任务（百度新闻整理） | ⏳ 未开始 | 示例任务脚本与执行入口 | 一键触发任务并输出结构化日志与结果 |
 | B4. 前端实时日志转发 | ⏳ 未开始 | 流式日志通道（事件或 IPC） | 任务执行中前端实时刷新日志，不再“任务结束后一次性返回” |
@@ -57,7 +58,11 @@
 
 ### Iteration-3：里程碑 B1（端口检测深化）
 
-- [ ] Chrome 调试端口 HTTP/json 探测与可读错误（里程碑 B1）
+- [x] Chrome 调试端口 HTTP/json 探测与可读错误（里程碑 B1）
+
+### Iteration-4：里程碑 B2（CDP 会话管理）
+
+- [ ] CDP 连接与会话复用、重试策略（里程碑 B2）
 
 ### Iteration-1：里程碑 A1（工程骨架初始化）— 已收尾
 
@@ -77,6 +82,7 @@
 | 2026-04-18 | 初始化 Tauri 工程骨架与最小界面，补充运行命令说明 | `package.json`、`src/`、`src-tauri/`、`README.md`、`progress.md` |
 | 2026-04-18 | 接入 Midscene 最小探活：esbuild 打包脚本、Tauri `run_midscene_minimal`、bundle resources、环境变量模板与 README | `package.json`、`scripts/`、`src-tauri/`、`src/main.ts`、`.env.example`、`README.md`、`progress.md`、`.gitignore`、`rust-toolchain.toml` |
 | 2026-04-18 | 配置与 UI 状态：dotenvy 启动加载、默认端口、TCP 检测命令、配置摘要命令、状态 pill 与双按钮 | `src-tauri/src/`、`src/main.ts`、`src/styles.css`、`README.md`、`.env.example`、`progress.md`、`Cargo.toml`、`Cargo.lock` |
+| 2026-04-18 | B1 HTTP/JSON 端口检测、`check_cdp_devtools_json` 命令；检测按钮串联 TCP+HTTP；README macOS/Windows 平台策略 | `src-tauri/src/env_bootstrap.rs`、`src-tauri/src/lib.rs`、`src/main.ts`、`README.md`、`progress.md` |
 
 ## 文档协同机制（必须执行）
 
@@ -88,8 +94,8 @@
 
 ## 当前状态
 
-- 当前版本：v0.5
-- 当前阶段：Iteration-3（里程碑 B1：端口检测深化）
-- 最近完成：Rust 端 `.env` 加载与缺省调试端口、CDP TCP 检测与配置摘要 IPC、前端六态 UI
-- 下一步待开发：里程碑 B1（HTTP/json 级端口探测与错误文案）
-- 未解决问题：按本轮要求跳过自动化/手动测试；需在 Windows + 已安装 Node 的环境联调验证
+- 当前版本：v0.6
+- 当前阶段：Iteration-4（里程碑 B2：CDP 连接与会话管理）
+- 最近完成：`/json/version` HTTP+JSON 校验、`check_cdp_devtools_json`、前端检测流程串联；README 明确 macOS 开发测试与 Windows 发布路径
+- 下一步待开发：里程碑 B2（连接管理、重试、会话复用）
+- 未解决问题：按仓库历史约定可跳过自动化测试；发布前建议在 **Windows** 上完成安装包与内网联调验证；**macOS** 上可完成大部分 CDP 与 Midscene 探活验证
