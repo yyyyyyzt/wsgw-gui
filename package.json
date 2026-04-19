@@ -4,6 +4,11 @@
   "description": "这是为你搭建的轻量自动化客户端框架，基于 Tauri + Midscene.js 开发，专门适配windows自动化应用场景。",
   "type": "module",
   "scripts": {
+    "bundle:midscene-worker": "esbuild scripts/run-minimal-midscene.mts --bundle --platform=node --target=node20 --format=esm --outfile=src-tauri/resources/midscene-minimal.mjs --banner:js=\"import { createRequire } from 'module';const require=createRequire(import.meta.url);\"",
+    "bundle:midscene-news": "esbuild scripts/run-builtin-news-task.mts --bundle --platform=node --target=node20 --format=esm --outfile=src-tauri/resources/midscene-builtin-news.mjs --banner:js=\"import { createRequire } from 'module';const require=createRequire(import.meta.url);\"",
+    "bundle:midscene-all": "npm run bundle:midscene-worker && npm run bundle:midscene-news",
+    "predev": "npm run bundle:midscene-all",
+    "prebuild": "npm run bundle:midscene-all",
     "dev": "vite --host 0.0.0.0 --port 1420",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
@@ -25,10 +30,16 @@
   "homepage": "https://github.com/yyyyyyzt/wsgw-gui#readme",
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",
+    "@types/node": "^25.6.0",
+    "esbuild": "^0.28.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.8"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.8.0"
+    "@midscene/web": "^1.7.4",
+    "@tauri-apps/api": "^2.8.0",
+    "dotenv": "^17.4.2",
+    "puppeteer-core": "^24.41.0",
+    "tsx": "^4.21.0"
   }
 }

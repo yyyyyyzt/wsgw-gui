@@ -11,6 +11,11 @@
 | v0.1 | 2026-04-18 | 仓库初始化，仅包含项目说明文档 |
 | v0.2 | 2026-04-18 | 重构开发计划，补充验收标准与文档协同机制 |
 | v0.3 | 2026-04-18 | 完成里程碑 A1：初始化 Tauri 工程骨架与最小页面 |
+| v0.4 | 2026-04-18 | 完成里程碑 A2：Midscene + puppeteer-core 最小 CDP 探活（Tauri 命令 + 子进程） |
+| v0.5 | 2026-04-18 | 完成里程碑 A3/A4：Rust 端 .env 加载与缺省端口、CDP TCP 检测命令、界面状态 pill |
+| v0.6 | 2026-04-18 | 完成里程碑 B1：/json/version HTTP+JSON 校验；README 补充 macOS 开发与 Windows 发布说明 |
+| v0.7 | 2026-04-18 | 完成里程碑 B2：CDP WebSocket 缓存、解析重试、握手校验、探活注入复用 |
+| v0.8 | 2026-04-18 | 完成里程碑 B3：内置新闻热点整理任务脚本与 `run_builtin_news_task` |
 
 ## 项目目标（MVP）
 
@@ -25,17 +30,17 @@
 | 任务 | 状态 | 产出物 | 验收标准 |
 | ---- | ---- | ------ | -------- |
 | A1. 初始化 Tauri 项目结构（前端 + `src-tauri`） | ✅ 已完成 | 可运行工程目录、`package.json`、`src-tauri/Cargo.toml` | 执行 `npm run tauri:dev` 可启动开发环境 |
-| A2. 接入 Midscene 运行时依赖与最小调用封装 | ⏳ 未开始 | Node 侧任务执行模块（如 `src/automation/`） | 可通过按钮触发一次最小自动化调用并返回结果 |
-| A3. 增加配置体系（`.env.example`、读取逻辑、缺省值） | ⏳ 未开始 | 环境变量模板、配置加载模块 | 未配置关键变量时有明确错误提示，不崩溃 |
-| A4. 提供基础界面与状态流转 | ⏳ 未开始 | 首页基础 UI、状态枚举、日志展示 | 可看到“未连接/连接中/已连接/执行中/完成/失败”状态 |
+| A2. 接入 Midscene 运行时依赖与最小调用封装 | ✅ 已完成 | `scripts/run-minimal-midscene.mts`、esbuild bundle、`run_midscene_minimal` 命令、`.env.example` | 用户点击按钮后通过 Tauri 拉起 Node 子进程，完成 CDP 连接与 Midscene `PuppeteerAgent` 实例化并返回当前页 URL |
+| A3. 增加配置体系（`.env.example`、读取逻辑、缺省值） | ✅ 已完成 | `env_bootstrap`（dotenvy）、缺省 `WSGW_DEBUG_PORT=9222`、`WSGW_ENV_FILE`、`get_runtime_config_summary` | 启动加载 `.env`；无 URL 且无端口时默认 9222；非法端口或缺失连接信息时返回可读错误 |
+| A4. 提供基础界面与状态流转 | ✅ 已完成 | 状态 pill 样式、`check_cdp_reachable` 与双按钮流程 | 界面展示未连接/连接中/已连接/执行中/完成/失败；日志区保留 |
 
 ### 里程碑 B：自动化闭环能力
 
 | 任务 | 状态 | 产出物 | 验收标准 |
 | ---- | ---- | ------ | -------- |
-| B1. Chrome 调试端口检测 | ⏳ 未开始 | 端口探测逻辑与连接测试逻辑 | 未开启端口时返回可读提示，开启后可识别 |
-| B2. CDP 连接与会话管理 | ⏳ 未开始 | 连接管理模块、重试策略 | 连接成功后可复用已登录浏览器上下文 |
-| B3. 内置测试任务（百度新闻整理） | ⏳ 未开始 | 示例任务脚本与执行入口 | 一键触发任务并输出结构化日志与结果 |
+| B1. Chrome 调试端口检测 | ✅ 已完成 | `check_cdp_reachable`（TCP）+ `check_cdp_devtools_json`（HTTP/JSON） | 端口关闭或返回非 DevTools JSON 时错误可读；成功时确认存在 `webSocketDebuggerUrl` |
+| B2. CDP 连接与会话管理 | ✅ 已完成 | `cdp_session` 模块、`establish_cdp_session` / `clear_cdp_session`、进程内 WS 缓存、子进程 URL 注入 | 解析带重试；握手校验后缓存；多次探活复用同一 CDP 端点（用户显式建立会话或首次探活时解析） |
+| B3. 内置测试任务（百度新闻整理） | ✅ 已完成 | `scripts/run-builtin-news-task.mts`、`midscene-builtin-news.mjs`、`run_builtin_news_task`、界面按钮 | 用户点击后打开可配置新闻页并输出标题预览；CDP 由主进程注入 |
 | B4. 前端实时日志转发 | ⏳ 未开始 | 流式日志通道（事件或 IPC） | 任务执行中前端实时刷新日志，不再“任务结束后一次性返回” |
 
 ### 里程碑 C：可交付与扩展能力
@@ -48,14 +53,35 @@
 
 ## 当前迭代任务（Now）
 
-### Iteration-1：里程碑 A1（工程骨架初始化）
+### Iteration-2：里程碑 A3 / A4（配置与界面状态）
+
+- [x] 增加配置体系（`.env` 与读取逻辑、缺省值与错误提示）（里程碑 A3）
+- [x] 完善首页状态枚举与日志区（里程碑 A4）
+
+### Iteration-3：里程碑 B1（端口检测深化）
+
+- [x] Chrome 调试端口 HTTP/json 探测与可读错误（里程碑 B1）
+
+### Iteration-4：里程碑 B2（CDP 会话管理）
+
+- [x] CDP 连接与会话复用、重试策略（里程碑 B2）
+
+### Iteration-5：里程碑 B3（内置示例任务）
+
+- [x] 内置测试任务（百度新闻整理）与执行入口（里程碑 B3）
+
+### Iteration-6：里程碑 B4（流式日志）
+
+- [ ] 任务执行中通过 IPC 流式转发日志（里程碑 B4）
+
+### Iteration-1：里程碑 A1（工程骨架初始化）— 已收尾
 
 - [x] 梳理仓库现状与缺口
 - [x] 重构 `progress.md` 为可执行计划
 - [x] 明确“边开发边补文档”的协同机制
 - [x] 创建首个可运行 Tauri 工程骨架（里程碑 A1）
 - [x] 补充环境准备与命令验证文档
-- [ ] 接入 Midscene 运行时依赖与最小调用封装（里程碑 A2）
+- [x] 接入 Midscene 运行时依赖与最小调用封装（里程碑 A2）
 
 ## 文档补齐记录（开发同步更新）
 
@@ -64,6 +90,11 @@
 | 2026-04-18 | 将宏观待办改为里程碑 + 验收标准，新增迭代机制 | `progress.md` |
 | 2026-04-18 | 补充开发准备、文档协同流程说明 | `README.md`、`agents.md` |
 | 2026-04-18 | 初始化 Tauri 工程骨架与最小界面，补充运行命令说明 | `package.json`、`src/`、`src-tauri/`、`README.md`、`progress.md` |
+| 2026-04-18 | 接入 Midscene 最小探活：esbuild 打包脚本、Tauri `run_midscene_minimal`、bundle resources、环境变量模板与 README | `package.json`、`scripts/`、`src-tauri/`、`src/main.ts`、`.env.example`、`README.md`、`progress.md`、`.gitignore`、`rust-toolchain.toml` |
+| 2026-04-18 | 配置与 UI 状态：dotenvy 启动加载、默认端口、TCP 检测命令、配置摘要命令、状态 pill 与双按钮 | `src-tauri/src/`、`src/main.ts`、`src/styles.css`、`README.md`、`.env.example`、`progress.md`、`Cargo.toml`、`Cargo.lock` |
+| 2026-04-18 | B1 HTTP/JSON 端口检测、`check_cdp_devtools_json` 命令；检测按钮串联 TCP+HTTP；README macOS/Windows 平台策略 | `src-tauri/src/env_bootstrap.rs`、`src-tauri/src/lib.rs`、`src/main.ts`、`README.md`、`progress.md` |
+| 2026-04-18 | B2：`cdp_session`、WS 握手、缓存与重试、探活注入；前端检测第三步与会话清除按钮；`tungstenite`/`url` 依赖 | `src-tauri/src/cdp_session.rs`、`src-tauri/src/lib.rs`、`src/main.ts`、`src/styles.css`、`README.md`、`.env.example`、`progress.md`、`Cargo.toml`、`Cargo.lock` |
+| 2026-04-18 | B3：新闻任务 bundle、`run_builtin_news_task`、资源打包、前端按钮与文档 | `scripts/run-builtin-news-task.mts`、`package.json`、`src-tauri/`、`src/main.ts`、`README.md`、`.env.example`、`progress.md` |
 
 ## 文档协同机制（必须执行）
 
@@ -75,8 +106,8 @@
 
 ## 当前状态
 
-- 当前版本：v0.3
-- 当前阶段：Iteration-1（里程碑 A1 已完成，进入里程碑 A2 准备）
-- 最近完成：Tauri 工程骨架、最小页面、基础运行脚本与配置初始化
-- 下一步待开发：接入 Midscene 运行时依赖与最小调用封装（A2）
-- 未解决问题：按本轮要求暂未执行本地测试验证，待后续联调时统一补测
+- 当前版本：v0.8
+- 当前阶段：Iteration-6（里程碑 B4：流式日志）
+- 最近完成：内置新闻热点任务（DOM 抓取标题）、双 bundle 与资源打包、Rust/前端入口
+- 下一步待开发：里程碑 B4（IPC 流式日志）
+- 未解决问题：按仓库历史约定可跳过自动化测试；**wss://** 远程 CDP 握手未实现（仅本机 `ws://`）；发布前建议在 **Windows** 上完成安装包与内网联调验证

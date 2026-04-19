@@ -38,22 +38,82 @@ body {
   color: #6b7280;
 }
 
-.status {
+.status-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  background: #eef2ff;
-  color: #3730a3;
+  padding: 6px 12px;
   border-radius: 999px;
   font-size: 14px;
+  border: 1px solid transparent;
 }
 
-.dot {
+.status-pill .dot {
   width: 8px;
   height: 8px;
   border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.status-disconnected {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+.status-disconnected .dot {
+  background: #9ca3af;
+}
+
+.status-connecting {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.status-connecting .dot {
+  background: #f59e0b;
+}
+
+.status-connected {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+.status-connected .dot {
+  background: #10b981;
+}
+
+.status-executing {
+  background: #eef2ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+.status-executing .dot {
   background: #4f46e5;
+}
+
+.status-completed {
+  background: #ecfeff;
+  color: #155e75;
+  border-color: #a5f3fc;
+}
+.status-completed .dot {
+  background: #06b6d4;
+}
+
+.status-failed {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+.status-failed .dot {
+  background: #ef4444;
+}
+
+.config-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .log {
@@ -88,4 +148,13 @@ button {
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+button.secondary {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: #d1d5db;
 }
